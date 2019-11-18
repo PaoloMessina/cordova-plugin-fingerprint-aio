@@ -20,6 +20,7 @@ import org.json.JSONObject;
 public class Fingerprint extends CordovaPlugin {
 
     private static final String TAG = "Fingerprint";
+    private static final String CLIENT_SECRET = "clientSecret";
     private CallbackContext mCallbackContext = null;
 
     private static final int REQUEST_CODE_BIOMETRIC = 1;
@@ -69,6 +70,7 @@ public class Fingerprint extends CordovaPlugin {
             mPromptInfoBuilder.parseArgs(args);
             Intent intent = new Intent(cordova.getActivity().getApplicationContext(), BiometricActivity.class);
             intent.putExtras(mPromptInfoBuilder.build().getBundle());
+            intent.putExtra(CLIENT_SECRET, getKeyArg(args));
             this.cordova.startActivityForResult(this, intent, REQUEST_CODE_BIOMETRIC);
         });
         PluginResult pluginResult = new PluginResult(PluginResult.Status.NO_RESULT);
@@ -125,5 +127,25 @@ public class Fingerprint extends CordovaPlugin {
         Log.e(TAG, message);
         cordova.getActivity().runOnUiThread(() ->
                 this.mCallbackContext.success(message));
+    }
+
+    private String getKeyArg(JSONArray args) {
+        JSONObject argsObject;
+        try {
+            argsObject = args.getJSONObject(0);
+            if (argsObject.optString("clientSecret") != null
+                    && !argsObject.optString(CLIENT_SECRET).isEmpty()){
+                try {
+                    return argsObject.getString(CLIENT_SECRET);
+                } catch (JSONException e) {
+                    Log.e(TAG, "Can't parse '" + CLIENT_SECRET + "'. Default will be used.", e);
+                }
+            }
+            return null;
+        } catch (JSONException e) {
+            Log.e(TAG, "Config not present can't create signature and use it.", e);
+            return null;
+        }
+
     }
 }

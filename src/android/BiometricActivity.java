@@ -1,5 +1,6 @@
 package de.niklasmerz.cordova.biometric;
 
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.KeyguardManager;
 import android.content.Intent;
@@ -7,20 +8,33 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.security.keystore.KeyPermanentlyInvalidatedException;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.annotation.RequiresApi;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
+import android.util.Log;
 
 import com.exxbrain.android.biometric.BiometricPrompt;
 
+import java.security.KeyPair;
+import java.security.KeyStore;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.Signature;
 import java.util.concurrent.Executor;
 
 public class BiometricActivity extends AppCompatActivity {
 
     private static final int REQUEST_CODE_CONFIRM_DEVICE_CREDENTIALS = 2;
     private PromptInfo mPromptInfo;
+    private static final String CLIENT_SECRET = "clientSecret";
+    private static final String TAG = "BiometricActivity";
+    private KeyPair keyPair;
 
+
+    @RequiresApi(api = Build.VERSION_CODES.M)
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -35,11 +49,25 @@ public class BiometricActivity extends AppCompatActivity {
         }
 
         mPromptInfo = new PromptInfo.Builder(getIntent().getExtras()).build();
-        authenticate();
 
+        try {
+            String clientSecret = getIntent().getStringExtra(CLIENT_SECRET);
+            if(clientSecret == null){
+                authenticate(null);
+            } else {
+                keyPair = this.getKeyPair(CLIENT_SECRET);
+                if(keyPair != null) authenticate(initSignature(keyPair));
+            }
+        }   catch (@SuppressLint("NewApi") KeyPermanentlyInvalidatedException e) {
+            Log.e(TAG, "Error during authenticate generate Key pair", e);
+            this.finishWithError(PluginError.BIOMETRIC_AUTHENTICATION_FAILED.getValue(), "Impronte digitali cambiate");
+        } catch (Exception e) {
+            Log.e(TAG, "Error during authenticate generate Key pair", e);
+            this.finishWithError(PluginError.BIOMETRIC_AUTHENTICATION_FAILED.getValue(), "Impronte digitali cambiate");
+        }
     }
 
-    private void authenticate() {
+    private void authenticate(Signature signature) {
         final Handler handler = new Handler(Looper.getMainLooper());
         Executor executor = handler::post;
 
@@ -58,7 +86,10 @@ public class BiometricActivity extends AppCompatActivity {
             promptInfoBuilder.setNegativeButtonText(mPromptInfo.getCancelButtonTitle());
         }
 
-        biometricPrompt.authenticate(promptInfoBuilder.build());
+        if(signature != null)
+            biometricPrompt.authenticate(promptInfoBuilder.build(), new BiometricPrompt.CryptoObject(signature));
+        /*else
+            biometricPrompt.authenticate(promptInfoBuilder.build());*/
     }
 
     private BiometricPrompt.AuthenticationCallback mAuthenticationCallback =
@@ -155,5 +186,26 @@ public class BiometricActivity extends AppCompatActivity {
         data.putExtra("message", message);
         setResult(RESULT_CANCELED, data);
         finish();
+    }
+
+    @Nullable
+    private KeyPair getKeyPair(String keyName) throws Exception{
+        KeyStore keyStore = KeyStore.getInstance("AndroidKeyStore");
+        keyStore.load(null);
+        if (keyStore.containsAlias(keyName)) {
+            // Get public key
+            PublicKey publicKey = keyStore.getCertificate(keyName).getPublicKey();
+            // Get private key
+            PrivateKey privateKey = (PrivateKey) keyStore.getKey(keyName, null);
+            // Return a key pair
+            return new KeyPair(publicKey, privateKey);
+        }
+        return null;
+    }
+
+    private Signature initSignature(KeyPair keyPair) throws Exception {
+        Signature signature = Signature.getInstance("SHA256withECDSA");
+        signature.initSign(keyPair.getPrivate());
+        return signature;
     }
 }
