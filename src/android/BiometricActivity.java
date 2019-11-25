@@ -88,8 +88,8 @@ public class BiometricActivity extends AppCompatActivity {
 
         if(signature != null)
             biometricPrompt.authenticate(promptInfoBuilder.build(), new BiometricPrompt.CryptoObject(signature));
-        /*else
-            biometricPrompt.authenticate(promptInfoBuilder.build());*/
+        else
+            biometricPrompt.authenticate(promptInfoBuilder.build());
     }
 
     private BiometricPrompt.AuthenticationCallback mAuthenticationCallback =
