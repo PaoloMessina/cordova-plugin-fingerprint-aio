@@ -55,8 +55,9 @@ public class BiometricActivity extends AppCompatActivity {
             if(clientSecret == null){
                 authenticate(null);
             } else {
-                keyPair = this.getKeyPair(CLIENT_SECRET);
+                keyPair = this.getKeyPair(clientSecret);
                 if(keyPair != null) authenticate(initSignature(keyPair));
+                else this.finishWithError(PluginError.BIOMETRIC_AUTHENTICATION_FAILED.getValue(), "No Keypair found");
             }
         }   catch (@SuppressLint("NewApi") KeyPermanentlyInvalidatedException e) {
             Log.e(TAG, "Error during authenticate generate Key pair", e);
